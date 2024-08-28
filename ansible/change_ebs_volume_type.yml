@@ -1,0 +1,16 @@
+---
+- name: Change EBS Volume Type from gp2 to gp3
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Get EBS volume ID
+      community.aws.ec2_vol_info:
+        filters:
+          tag:elasticbeanstalk:environment-name: "your-environment-name"
+      register: volumes_info
+
+    - name: Modify EBS volume to gp3
+      community.aws.ec2_vol:
+        volume_id: "{{ item.id }}"
+        volume_type: gp3
+      loop: "{{ volumes_info.volumes }}"
