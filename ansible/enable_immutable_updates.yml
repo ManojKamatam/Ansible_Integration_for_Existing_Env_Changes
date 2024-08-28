@@ -1,0 +1,24 @@
+---
+- name: Enable Immutable Updates and Change Instance Type for Elastic Beanstalk Environment
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Set Immutable Deployment Policy
+      community.aws.elasticbeanstalk_env:
+        application_name: "your-application-name"
+        environment_name: "your-environment-name"
+        option_settings:
+          - namespace: "aws:elasticbeanstalk:command"
+            option_name: "DeploymentPolicy"
+            value: "Immutable"
+      region: "your-region"
+
+    - name: Change Instance Type in Elastic Beanstalk Environment
+      community.aws.elasticbeanstalk_env:
+        application_name: "your-application-name"
+        environment_name: "your-environment-name"
+        option_settings:
+          - namespace: "aws:autoscaling:launchconfiguration"
+            option_name: "InstanceType"
+            value: "t3.medium"  # Change this to your desired instance type
+      region: "your-region"
