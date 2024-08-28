@@ -6,7 +6,8 @@
     - name: Get EBS volume ID
       community.aws.ec2_vol_info:
         filters:
-          tag:elasticbeanstalk:environment-name: "your-environment-name"
+          tag: elasticbeanstalk:environment-name
+          values: "{{ environment_name }}"
       register: volumes_info
 
     - name: Modify EBS volume to gp3
