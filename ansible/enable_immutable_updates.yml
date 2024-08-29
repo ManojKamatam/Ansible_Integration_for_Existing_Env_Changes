@@ -11,7 +11,9 @@
           - namespace: "aws:elasticbeanstalk:command"
             option_name: "DeploymentPolicy"
             value: "Immutable"
-      region: "{{ region }}"
+        aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
+        aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+        region: "{{ region }}"
 
     - name: Change Instance Type in Elastic Beanstalk Environment
       community.aws.elasticbeanstalk_env:
@@ -20,5 +22,7 @@
         option_settings:
           - namespace: "aws:autoscaling:launchconfiguration"
             option_name: "InstanceType"
-            value: "t3.medium"  # Change this to your desired instance type
-      region: "{{ region }}"
+            value: "t3.medium"
+        aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
+        aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+        region: "{{ region }}"
