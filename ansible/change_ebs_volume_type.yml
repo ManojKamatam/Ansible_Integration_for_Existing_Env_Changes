@@ -8,10 +8,16 @@
         filters:
           tag: elasticbeanstalk:environment-name
           values: "{{ environment_name }}"
+        aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
+        aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+        region: "{{ region }}"
       register: volumes_info
 
     - name: Modify EBS volume to gp3
       community.aws.ec2_vol:
         volume_id: "{{ item.id }}"
         volume_type: gp3
+        aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
+        aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+        region: "{{ region }}"
       loop: "{{ volumes_info.volumes }}"
