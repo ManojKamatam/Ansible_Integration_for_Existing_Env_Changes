@@ -9,22 +9,26 @@ pipeline {
         AWS_REGION = 'us-east-1'
         SECRET_NAME = 'secret-jenkins-access'  // Replace with your actual secret name
         VERSION_LABEL = "app-version-${BUILD_NUMBER}"  // Unique version label using Jenkins build number
+        // AWS credentials will be set after retrieving from Secrets Manager
     }
 
     stages {
         stage('Retrieve AWS Credentials from Secrets Manager') {
             steps {
                 script {
-                    // Retrieve the secret as plain text (JSON object)
                     def secretValue = sh(script: "aws secretsmanager get-secret-value --secret-id ${SECRET_NAME} --query 'SecretString' --output text --region ${AWS_REGION}", returnStdout: true).trim()
-                    
-                    // Parse the JSON to get the key-value pair
                     def jsonSlurper = new groovy.json.JsonSlurper()
                     def credentials = jsonSlurper.parseText(secretValue)
-
-                    // Extract the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
                     env.AWS_ACCESS_KEY_ID = credentials.AWS_ACCESS_KEY_ID
                     env.AWS_SECRET_ACCESS_KEY = credentials.AWS_SECRET_ACCESS_KEY
+                }
+            }
+        }
+
+        stage('Check Ansible Installation') {
+            steps {
+                script {
+                    sh 'ansible --version || (echo "Ansible is not installed. Exiting..." && exit 1)'
                 }
             }
         }
@@ -37,67 +41,47 @@ pipeline {
 
         stage('Enable Immutable Updates and Change Instance Type with Ansible') {
             steps {
-                script {
-                    withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
-                        sh """
-                            ansible-playbook -i localhost, ansible/enable_immutable_updates.yml \
-                            --extra-vars "application_name=${APPLICATION_NAME} environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
-                        """
-                    }
-                }
+                sh """
+                    ansible-playbook -i localhost, ansible/enable_immutable_updates.yml \
+                    --extra-vars "application_name=${APPLICATION_NAME} environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
+                """
             }
         }
 
         stage('Change EBS Volume Type with Ansible') {
             steps {
-                script {
-                    withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
-                        sh """
-                            ansible-playbook -i localhost, ansible/change_ebs_volume_type.yml \
-                            --extra-vars "application_name=${APPLICATION_NAME} environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
-                        """
-                    }
-                }
+                sh """
+                    ansible-playbook -i localhost, ansible/change_ebs_volume_type.yml \
+                    --extra-vars "application_name=${APPLICATION_NAME} environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
+                """
             }
         }
 
         stage('Upload to S3') {
             steps {
-                script {
-                    withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
-                        sh "aws s3 cp application.zip s3://${S3_BUCKET}/${S3_KEY} --region ${AWS_REGION}"
-                    }
-                }
+                sh "aws s3 cp application.zip s3://${S3_BUCKET}/${S3_KEY} --region ${AWS_REGION}"
             }
         }
 
         stage('Deploy Application Version to Elastic Beanstalk') {
             steps {
-                script {
-                    withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
-                        sh """
-                            aws elasticbeanstalk create-application-version --application-name ${APPLICATION_NAME} \
-                            --version-label ${VERSION_LABEL} --source-bundle S3Bucket=${S3_BUCKET},S3Key=${S3_KEY} \
-                            --region ${AWS_REGION}
-                        """
-                    }
-                }
+                sh """
+                    aws elasticbeanstalk create-application-version --application-name ${APPLICATION_NAME} \
+                    --version-label ${VERSION_LABEL} --source-bundle S3Bucket=${S3_BUCKET},S3Key=${S3_KEY} \
+                    --region ${AWS_REGION}
+                """
             }
         }
 
         stage('Update Elastic Beanstalk Environment') {
             steps {
-                script {
-                    withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
-                        sh """
-                            aws elasticbeanstalk update-environment \
-                            --application-name ${APPLICATION_NAME} \
-                            --environment-name ${ENVIRONMENT_NAME} \
-                            --version-label ${VERSION_LABEL} \
-                            --region ${AWS_REGION}
-                        """
-                    }
-                }
+                sh """
+                    aws elasticbeanstalk update-environment \
+                    --application-name ${APPLICATION_NAME} \
+                    --environment-name ${ENVIRONMENT_NAME} \
+                    --version-label ${VERSION_LABEL} \
+                    --region ${AWS_REGION}
+                """
             }
         }
     }
@@ -105,6 +89,9 @@ pipeline {
     post {
         always {
             echo 'Deployment process completed.'
+        }
+        cleanup {
+            // Add any cleanup steps here if needed, like deleting temporary files or workspace cleanup
         }
     }
 }
