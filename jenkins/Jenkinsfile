@@ -9,7 +9,6 @@ pipeline {
         AWS_REGION = 'us-east-1'
         SECRET_NAME = 'secret-jenkins-access'  // Replace with your actual secret name
         VERSION_LABEL = "app-version-${BUILD_NUMBER}"  // Unique version label using Jenkins build number
-        // AWS credentials will be set after retrieving from Secrets Manager
     }
 
     stages {
@@ -27,9 +26,7 @@ pipeline {
 
         stage('Check Ansible Installation') {
             steps {
-                script {
-                    sh 'ansible --version || (echo "Ansible is not installed. Exiting..." && exit 1)'
-                }
+                sh 'ansible --version || (echo "Ansible is not installed. Exiting..." && exit 1)'
             }
         }
 
@@ -41,19 +38,19 @@ pipeline {
 
         stage('Enable Immutable Updates and Change Instance Type with Ansible') {
             steps {
-                sh """
+                sh '''
                     ansible-playbook -i localhost, ansible/enable_immutable_updates.yml \
                     --extra-vars "application_name=${APPLICATION_NAME} environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
-                """
+                '''
             }
         }
 
         stage('Change EBS Volume Type with Ansible') {
             steps {
-                sh """
+                sh '''
                     ansible-playbook -i localhost, ansible/change_ebs_volume_type.yml \
                     --extra-vars "application_name=${APPLICATION_NAME} environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
-                """
+                '''
             }
         }
 
@@ -65,23 +62,23 @@ pipeline {
 
         stage('Deploy Application Version to Elastic Beanstalk') {
             steps {
-                sh """
+                sh '''
                     aws elasticbeanstalk create-application-version --application-name ${APPLICATION_NAME} \
                     --version-label ${VERSION_LABEL} --source-bundle S3Bucket=${S3_BUCKET},S3Key=${S3_KEY} \
                     --region ${AWS_REGION}
-                """
+                '''
             }
         }
 
         stage('Update Elastic Beanstalk Environment') {
             steps {
-                sh """
+                sh '''
                     aws elasticbeanstalk update-environment \
                     --application-name ${APPLICATION_NAME} \
                     --environment-name ${ENVIRONMENT_NAME} \
                     --version-label ${VERSION_LABEL} \
                     --region ${AWS_REGION}
-                """
+                '''
             }
         }
     }
