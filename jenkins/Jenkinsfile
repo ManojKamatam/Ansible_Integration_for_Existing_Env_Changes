@@ -37,66 +37,56 @@ pipeline {
 
         stage('Enable Immutable Updates and Change Instance Type with Ansible') {
             steps {
-                script {
-                    withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
-                        sh """
-                            ansible-playbook -i localhost, ansible/enable_immutable_updates.yml \
-                            --extra-vars "application_name=${APPLICATION_NAME} environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
-                        """
-                    }
+                withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}", "AWS_REGION=${AWS_REGION}"]) {
+                    sh """
+                        ansible-playbook -i localhost, ansible/enable_immutable_updates.yml \
+                        --extra-vars "application_name=${APPLICATION_NAME} environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
+                    """
                 }
             }
         }
 
         stage('Change EBS Volume Type with Ansible') {
             steps {
-                script {
-                    withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
-                        sh """
-                            ansible-playbook -i localhost, ansible/change_ebs_volume_type.yml \
-                            --extra-vars "application_name=${APPLICATION_NAME} environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
-                        """
-                    }
+                withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}", "AWS_REGION=${AWS_REGION}"]) {
+                    sh """
+                        ansible-playbook -i localhost, ansible/change_ebs_volume_type.yml \
+                        --extra-vars "environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
+                    """
                 }
             }
         }
 
         stage('Upload to S3') {
             steps {
-                script {
-                    withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
-                        sh "aws s3 cp application.zip s3://${S3_BUCKET}/${S3_KEY} --region ${AWS_REGION}"
-                    }
+                withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
+                    sh "aws s3 cp application.zip s3://${S3_BUCKET}/${S3_KEY} --region ${AWS_REGION}"
                 }
             }
         }
 
         stage('Deploy Application Version to Elastic Beanstalk') {
             steps {
-                script {
-                    withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
-                        sh """
-                            aws elasticbeanstalk create-application-version --application-name ${APPLICATION_NAME} \
-                            --version-label ${VERSION_LABEL} --source-bundle S3Bucket=${S3_BUCKET},S3Key=${S3_KEY} \
-                            --region ${AWS_REGION}
-                        """
-                    }
+                withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
+                    sh """
+                        aws elasticbeanstalk create-application-version --application-name ${APPLICATION_NAME} \
+                        --version-label ${VERSION_LABEL} --source-bundle S3Bucket=${S3_BUCKET},S3Key=${S3_KEY} \
+                        --region ${AWS_REGION}
+                    """
                 }
             }
         }
 
         stage('Update Elastic Beanstalk Environment') {
             steps {
-                script {
-                    withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
-                        sh """
-                            aws elasticbeanstalk update-environment \
-                            --application-name ${APPLICATION_NAME} \
-                            --environment-name ${ENVIRONMENT_NAME} \
-                            --version-label ${VERSION_LABEL} \
-                            --region ${AWS_REGION}
-                        """
-                    }
+                withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
+                    sh """
+                        aws elasticbeanstalk update-environment \
+                        --application-name ${APPLICATION_NAME} \
+                        --environment-name ${ENVIRONMENT_NAME} \
+                        --version-label ${VERSION_LABEL} \
+                        --region ${AWS_REGION}
+                    """
                 }
             }
         }
