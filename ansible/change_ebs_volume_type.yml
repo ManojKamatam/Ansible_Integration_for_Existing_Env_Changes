@@ -1,6 +1,7 @@
 ---
 - name: Change EBS Volume Type from gp2 to gp3
   hosts: localhost
+  connection: local
   gather_facts: false
   tasks:
     - name: Get EBS volume ID using AWS CLI
