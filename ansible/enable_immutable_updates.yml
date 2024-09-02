@@ -1,6 +1,7 @@
 ---
 - name: Enable Immutable Updates and Change Instance Type for Elastic Beanstalk Environment
   hosts: localhost
+  connection: local
   gather_facts: false
   tasks:
     - name: Enable Immutable Deployment Policy using AWS CLI
