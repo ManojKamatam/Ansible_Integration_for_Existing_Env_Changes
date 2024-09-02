@@ -12,4 +12,6 @@ Archive or Remove Backup Files: # sudo rm -rf /path/to/backup/directory/*
 Check and Clean Up the tmp Directory: # sudo rm -rf /tmp/*
 # sudo systemctl restart jenkins
 
+Enhanced health monitoring is mandatory to have beanstalk updation by ansible...
+
 
