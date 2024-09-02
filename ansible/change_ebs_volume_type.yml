@@ -3,21 +3,15 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Get EBS volume ID
-      community.aws.ec2_vol_info:
-        filters:
-          tag: elasticbeanstalk:environment-name
-          values: "{{ environment_name }}"
-        aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
-        aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
-        region: "{{ region }}"
+    - name: Get EBS volume ID using AWS CLI
+      command: >
+        aws ec2 describe-volumes --filters "Name=tag:elasticbeanstalk:environment-name,Values={{ environment_name }}" --query "Volumes[*].VolumeId" --output text --region "{{ region }}"
       register: volumes_info
 
-    - name: Modify EBS volume to gp3
-      community.aws.ec2_vol:
-        volume_id: "{{ item.id }}"
-        volume_type: gp3
-        aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
-        aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
-        region: "{{ region }}"
-      loop: "{{ volumes_info.volumes }}"
+    - name: Modify EBS volume to gp3 using AWS CLI
+      command: >
+        aws ec2 modify-volume --volume-id {{ item }} --volume-type gp3 --region "{{ region }}"
+      loop: "{{ volumes_info.stdout_lines }}"
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
+        AWS_SECRET_ACCESS_KEY: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
