@@ -15,6 +15,15 @@
         AWS_ACCESS_KEY_ID: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
         AWS_SECRET_ACCESS_KEY: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
 
+    - name: Wait for Environment to be Ready after Immutable Deployment Policy Change
+      command: |
+        aws elasticbeanstalk describe-environments --application-name "{{ application_name }}" \
+        --environment-names "{{ environment_name }}" --query 'Environments[0].Status' --output text --region "{{ region }}"
+      register: env_status
+      until: env_status.stdout == "Ready"
+      retries: 30
+      delay: 60
+
     - name: Change Instance Type using AWS CLI
       command: >
         aws elasticbeanstalk update-environment
@@ -25,3 +34,12 @@
       environment:
         AWS_ACCESS_KEY_ID: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
         AWS_SECRET_ACCESS_KEY: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+
+    - name: Wait for Environment to be Ready after Instance Type Change
+      command: |
+        aws elasticbeanstalk describe-environments --application-name "{{ application_name }}" \
+        --environment-names "{{ environment_name }}" --query 'Environments[0].Status' --output text --region "{{ region }}"
+      register: env_status
+      until: env_status.stdout == "Ready"
+      retries: 30
+      delay: 60
