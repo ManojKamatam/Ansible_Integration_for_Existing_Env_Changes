@@ -7,33 +7,26 @@ pipeline {
         ENVIRONMENT_NAME = 'Linux-based-web-application-env'
         APPLICATION_NAME = 'linux-based-web-application'
         AWS_REGION = 'us-east-1'
-        SECRET_NAME = 'secret-jenkins-access'  // Replace with your actual secret name
-        VERSION_LABEL = "app-version-${BUILD_NUMBER}"  // Unique version label using Jenkins build number
+        SECRET_NAME = 'secret-jenkins-access'
+        VERSION_LABEL = "app-version-${BUILD_NUMBER}"
     }
 
     stages {
         stage('Retrieve AWS Credentials from Secrets Manager') {
             steps {
                 script {
-                    // Retrieve the secret as plain text (JSON object)
                     def secretValue = sh(script: "aws secretsmanager get-secret-value --secret-id ${SECRET_NAME} --query 'SecretString' --output text --region ${AWS_REGION}", returnStdout: true).trim()
-                    
-                    // Parse the JSON to get the key-value pair
                     def jsonSlurper = new groovy.json.JsonSlurper()
                     def credentials = jsonSlurper.parseText(secretValue)
-
-                    // Extract the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
-                    env.AWS_ACCESS_KEY_ID = credentials.keySet().iterator().next()  // The key (AWS_ACCESS_KEY_ID)
-                    env.AWS_SECRET_ACCESS_KEY = credentials[env.AWS_ACCESS_KEY_ID]  // The value (AWS_SECRET_ACCESS_KEY)
+                    env.AWS_ACCESS_KEY_ID = credentials.keySet().iterator().next()
+                    env.AWS_SECRET_ACCESS_KEY = credentials[env.AWS_ACCESS_KEY_ID]
                 }
             }
         }
 
         stage('Install Ansible Collections') {
             steps {
-                sh """
-                    ansible-galaxy collection install community.aws
-                """
+                sh "ansible-galaxy collection install community.aws"
             }
         }
 
@@ -43,32 +36,36 @@ pipeline {
             }
         }
 
-        stage('Enable Immutable Updates and Change Instance Type with Ansible') {
+        stage('Wait for Environment Readiness') {
             steps {
-                withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}", "AWS_REGION=${AWS_REGION}"]) {
-                    sh """
-                        ansible-playbook -i localhost, ansible/enable_immutable_updates.yml \
-                        --extra-vars "application_name=${APPLICATION_NAME} environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
-                    """
+                script {
+                    def isReady = false
+                    while (!isReady) {
+                        def result = sh(script: """
+                            aws elasticbeanstalk describe-environments --application-name ${APPLICATION_NAME} \
+                            --environment-names ${ENVIRONMENT_NAME} --query 'Environments[0].Status' --output text --region ${AWS_REGION}
+                        """, returnStdout: true).trim()
+                        if (result == 'Ready') {
+                            isReady = true
+                        } else {
+                            echo "Waiting for environment to be ready..."
+                            sleep(time: 60, unit: 'SECONDS') // Wait 60 seconds before checking again
+                        }
+                    }
                 }
             }
         }
 
-        stage('Change EBS Volume Type with Ansible') {
+        stage('Set Rolling Deployments for Application') {
             steps {
                 withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}", "AWS_REGION=${AWS_REGION}"]) {
                     sh """
-                        ansible-playbook -i localhost, ansible/change_ebs_volume_type.yml \
-                        --extra-vars "environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
+                        aws elasticbeanstalk update-environment \
+                        --application-name ${APPLICATION_NAME} \
+                        --environment-name ${ENVIRONMENT_NAME} \
+                        --option-settings Namespace=aws:elasticbeanstalk:command,OptionName=DeploymentPolicy,Value=Rolling \
+                        --region ${AWS_REGION}
                     """
-                }
-            }
-        }
-
-        stage('Upload to S3') {
-            steps {
-                withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
-                    sh "aws s3 cp application.zip s3://${S3_BUCKET}/${S3_KEY} --region ${AWS_REGION}"
                 }
             }
         }
@@ -94,6 +91,42 @@ pipeline {
                         --environment-name ${ENVIRONMENT_NAME} \
                         --version-label ${VERSION_LABEL} \
                         --region ${AWS_REGION}
+                    """
+                }
+            }
+        }
+
+        stage('Set Immutable Deployments for Configuration Updates') {
+            steps {
+                withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}", "AWS_REGION=${AWS_REGION}"]) {
+                    sh """
+                        aws elasticbeanstalk update-environment \
+                        --application-name ${APPLICATION_NAME} \
+                        --environment-name ${ENVIRONMENT_NAME} \
+                        --option-settings Namespace=aws:elasticbeanstalk:command,OptionName=DeploymentPolicy,Value=Immutable \
+                        --region ${AWS_REGION}
+                    """
+                }
+            }
+        }
+
+        stage('Change Instance Type with Ansible') {
+            steps {
+                withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}", "AWS_REGION=${AWS_REGION}"]) {
+                    sh """
+                        ansible-playbook -i localhost, ansible/enable_immutable_updates.yml \
+                        --extra-vars "application_name=${APPLICATION_NAME} environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
+                    """
+                }
+            }
+        }
+
+        stage('Change EBS Volume Type with Ansible') {
+            steps {
+                withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}", "AWS_REGION=${AWS_REGION}"]) {
+                    sh """
+                        ansible-playbook -i localhost, ansible/change_ebs_volume_type.yml \
+                        --extra-vars "environment_name=${ENVIRONMENT_NAME} region=${AWS_REGION}"
                     """
                 }
             }
