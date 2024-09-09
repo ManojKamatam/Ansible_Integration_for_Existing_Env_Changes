@@ -90,18 +90,6 @@ pipeline {
             }
         }
 
-        stage('Deploy Application Version to Elastic Beanstalk') {
-            steps {
-                withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"]) {
-                    sh """
-                        aws elasticbeanstalk create-application-version --application-name ${APPLICATION_NAME} \
-                        --version-label ${VERSION_LABEL} --source-bundle S3Bucket=${S3_BUCKET},S3Key=${S3_KEY} \
-                        --region ${AWS_REGION}
-                    """
-                }
-            }
-        }
-
         stage('Wait for Environment Readiness Before Update') {
             steps {
                 script {
@@ -214,8 +202,11 @@ pipeline {
     }
 
     post {
-        always {
-            echo 'Deployment process completed.'
-        }
+    success {
+        echo 'Deployment process completed successfully.'
     }
+    failure {
+        echo 'Deployment process failed. Please check the logs for more details.'
+    }
+  }
 }
